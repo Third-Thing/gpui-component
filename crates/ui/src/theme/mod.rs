@@ -2,6 +2,8 @@ use crate::{
     highlighter::HighlightTheme, list::ListSettings, notification::NotificationSettings,
     scroll::ScrollbarShow, sheet::SheetSettings,
 };
+#[cfg(target_os = "linux")]
+use fontdb::{Database as FontDatabase, Style as FontStyle, Weight as FontWeight};
 use gpui::{App, Global, Hsla, Pixels, SharedString, Window, WindowAppearance, px};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -26,7 +28,71 @@ pub fn init(cx: &mut App) {
 
     // Ensure theme is loaded directly on startup for WASM compatibility
     Theme::change(ThemeMode::Light, None, cx);
+    #[cfg(target_os = "linux")]
+    use_available_linux_fonts(cx);
     Theme::sync_scrollbar_appearance(cx);
+}
+
+#[cfg(target_os = "linux")]
+fn use_available_linux_fonts(cx: &mut App) {
+    const UI_CANDIDATES: [&str; 7] = [
+        "Adwaita Sans",
+        "Cantarell",
+        "Noto Sans",
+        "IBM Plex Sans",
+        "DejaVu Sans",
+        "Roboto",
+        "Arial",
+    ];
+
+    let mut font_db = FontDatabase::new();
+    font_db.load_system_fonts();
+
+    let ui_font_family = pick_available_font(&UI_CANDIDATES, &font_db);
+
+    let theme = Theme::global_mut(cx);
+    if theme.font_family.as_ref() == ".SystemUIFont"
+        && let Some(family) = ui_font_family
+    {
+        theme.font_family = family.into();
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn pick_available_font(
+    candidates: &[&'static str],
+    font_db: &FontDatabase,
+) -> Option<&'static str> {
+    candidates
+        .iter()
+        .find(|family| has_complete_font_family(font_db, family))
+        .copied()
+}
+
+#[cfg(target_os = "linux")]
+fn has_complete_font_family(font_db: &FontDatabase, family: &str) -> bool {
+    has_font_face(font_db, family, FontWeight::NORMAL, FontStyle::Normal)
+        && has_font_face(font_db, family, FontWeight::BOLD, FontStyle::Normal)
+        && has_font_face(font_db, family, FontWeight::NORMAL, FontStyle::Italic)
+        && has_font_face(font_db, family, FontWeight::BOLD, FontStyle::Italic)
+}
+
+#[cfg(target_os = "linux")]
+fn has_font_face(
+    font_db: &FontDatabase,
+    family: &str,
+    weight: FontWeight,
+    style: FontStyle,
+) -> bool {
+    font_db.faces().any(|face| {
+        face.weight == weight
+            && (face.style == style
+                || (style == FontStyle::Italic && face.style == FontStyle::Oblique))
+            && face
+                .families
+                .iter()
+                .any(|(face_family, _)| face_family == family)
+    })
 }
 
 pub trait ActiveTheme {

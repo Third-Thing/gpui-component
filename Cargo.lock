@@ -2987,6 +2987,7 @@ dependencies = [
  "chrono",
  "core-text",
  "enum-iterator",
+ "fontdb",
  "futures",
  "gpui",
  "gpui-component-macros",
