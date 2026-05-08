@@ -118,6 +118,7 @@ pub enum FontWeightContent {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, JsonSchema, Serialize, Deserialize)]
 pub struct ThemeStyle {
     pub color: Option<gpui::Hsla>,
+    pub background_color: Option<gpui::Hsla>,
     pub font_style: Option<FontStyle>,
     pub font_weight: Option<FontWeightContent>,
 }
@@ -126,6 +127,7 @@ impl From<ThemeStyle> for HighlightStyle {
     fn from(style: ThemeStyle) -> Self {
         HighlightStyle {
             color: style.color,
+            background_color: style.background_color,
             font_weight: style.font_weight.map(|w| match w {
                 FontWeightContent::Thin => gpui::FontWeight::THIN,
                 FontWeightContent::ExtraLight => gpui::FontWeight::EXTRA_LIGHT,
