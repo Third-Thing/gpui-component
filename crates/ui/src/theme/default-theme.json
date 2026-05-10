@@ -188,6 +188,9 @@
           "text.literal": {
             "color": "#6F42C1"
           },
+          "text.code.span": {
+            "background_color": "#f1f1f1"
+          },
           "title": {
             "color": "#0433FF"
           },
@@ -394,6 +397,9 @@
           },
           "text.literal": {
             "color": "#E1D797"
+          },
+          "text.code.span": {
+            "background_color": "#222"
           },
           "title": {
             "color": "#fdd888",
