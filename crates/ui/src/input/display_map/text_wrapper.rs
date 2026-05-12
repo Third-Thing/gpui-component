@@ -548,6 +548,31 @@ impl LineLayout {
         size(self.longest_width, self.wrapped_lines.len() * line_height)
     }
 
+    pub(crate) fn paint_background(
+        &self,
+        pos: Point<Pixels>,
+        line_height: Pixels,
+        text_align: TextAlign,
+        align_width: Option<Pixels>,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        if !self.has_run_backgrounds {
+            return;
+        }
+
+        for (ix, line) in self.wrapped_lines.iter().enumerate() {
+            _ = line.paint_background(
+                pos + point(px(0.), ix * line_height),
+                line_height,
+                text_align,
+                align_width,
+                window,
+                cx,
+            );
+        }
+    }
+
     pub(crate) fn paint(
         &self,
         pos: Point<Pixels>,
@@ -558,16 +583,6 @@ impl LineLayout {
         cx: &mut App,
     ) {
         for (ix, line) in self.wrapped_lines.iter().enumerate() {
-            if self.has_run_backgrounds {
-                _ = line.paint_background(
-                    pos + point(px(0.), ix * line_height),
-                    line_height,
-                    text_align,
-                    align_width,
-                    window,
-                    cx,
-                );
-            }
             _ = line.paint(
                 pos + point(px(0.), ix * line_height),
                 line_height,

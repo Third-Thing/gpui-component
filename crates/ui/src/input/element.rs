@@ -225,6 +225,12 @@ struct FoldIconLayout {
     icons: Vec<(usize, bool, gpui::AnyElement)>,
 }
 
+struct VisibleLinePosition<'a> {
+    line: &'a LineLayout,
+    buffer_line: usize,
+    offset_y: Pixels,
+}
+
 pub(super) struct TextElement {
     pub(crate) state: Entity<InputState>,
     placeholder: SharedString,
@@ -1247,6 +1253,33 @@ impl TextElement {
         lines
     }
 
+    fn visible_line_positions(
+        prepaint: &PrepaintState,
+        line_height: Pixels,
+    ) -> impl Iterator<Item = VisibleLinePosition<'_>> + '_ {
+        let mut offset_y = prepaint.last_layout.visible_top;
+
+        prepaint
+            .last_layout
+            .lines
+            .iter()
+            .zip(prepaint.last_layout.visible_buffer_lines.iter().copied())
+            .map(move |(line, buffer_line)| {
+                let line_y = offset_y;
+                offset_y += line.size(line_height).height;
+
+                if !prepaint.ghost_lines.is_empty() && prepaint.current_row == Some(buffer_line) {
+                    offset_y += prepaint.ghost_lines_height;
+                }
+
+                VisibleLinePosition {
+                    line,
+                    buffer_line,
+                    offset_y: line_y,
+                }
+            })
+    }
+
     /// First usize is the offset of skipped.
     fn highlight_lines(
         &mut self,
@@ -1930,6 +1963,34 @@ impl Element for TextElement {
             window.paint_path(path, cx.theme().border.opacity(0.85));
         }
 
+        // Keep scrollbar offset non-negative, starting from the left edge.
+        let scroll_offset = if text_align == TextAlign::Right {
+            (prepaint.scroll_size.width - prepaint.bounds.size.width).max(px(0.))
+        } else if text_align == TextAlign::Center {
+            (prepaint.scroll_size.width - prepaint.bounds.size.width)
+                .half()
+                .max(px(0.))
+        } else {
+            px(0.)
+        };
+
+        // Paint run backgrounds below selections so highlighted text remains visible.
+        for line_position in Self::visible_line_positions(prepaint, line_height) {
+            let p = point(
+                origin.x + prepaint.last_layout.line_number_width + scroll_offset,
+                origin.y + line_position.offset_y,
+            );
+
+            line_position.line.paint_background(
+                p,
+                line_height,
+                text_align,
+                Some(prepaint.last_layout.content_width),
+                window,
+                cx,
+            );
+        }
+
         // Paint selections
         if window.is_window_active() {
             let secondary_selection = cx.theme().selection.saturation(0.1);
@@ -1957,39 +2018,22 @@ impl Element for TextElement {
         }
 
         // Paint text with inline completion ghost line support
-        let mut offset_y = invisible_top_padding;
         let ghost_lines = &prepaint.ghost_lines;
         let has_ghost_lines = !ghost_lines.is_empty();
-
-        // Keep scrollbar offset always be positive，Start from the left position
-        let scroll_offset = if text_align == TextAlign::Right {
-            (prepaint.scroll_size.width - prepaint.bounds.size.width).max(px(0.))
-        } else if text_align == TextAlign::Center {
-            (prepaint.scroll_size.width - prepaint.bounds.size.width)
-                .half()
-                .max(px(0.))
-        } else {
-            px(0.)
-        };
 
         // Track the y-position of the cursor row for positioning the first line suffix
         let mut cursor_row_y = None;
 
-        for (line, &buffer_line) in prepaint
-            .last_layout
-            .lines
-            .iter()
-            .zip(prepaint.last_layout.visible_buffer_lines.iter())
-        {
-            let row = buffer_line;
-            let line_y = origin.y + offset_y;
+        for line_position in Self::visible_line_positions(prepaint, line_height) {
+            let row = line_position.buffer_line;
+            let line_y = origin.y + line_position.offset_y;
             let p = point(
                 origin.x + prepaint.last_layout.line_number_width + (scroll_offset),
                 line_y,
             );
 
             // Paint the actual line
-            _ = line.paint(
+            _ = line_position.line.paint(
                 p,
                 line_height,
                 text_align,
@@ -1997,7 +2041,8 @@ impl Element for TextElement {
                 window,
                 cx,
             );
-            offset_y += line.size(line_height).height;
+            let mut ghost_offset_y =
+                line_position.offset_y + line_position.line.size(line_height).height;
 
             if Some(row) == prepaint.current_row {
                 cursor_row_y = Some(line_y);
@@ -2008,7 +2053,7 @@ impl Element for TextElement {
                 let ghost_x = origin.x + prepaint.last_layout.line_number_width;
 
                 for ghost_line in ghost_lines {
-                    let ghost_p = point(ghost_x, origin.y + offset_y);
+                    let ghost_p = point(ghost_x, origin.y + ghost_offset_y);
 
                     // Paint semi-transparent background for ghost line
                     let ghost_bounds = Bounds::new(
@@ -2029,7 +2074,7 @@ impl Element for TextElement {
                         window,
                         cx,
                     );
-                    offset_y += line_height;
+                    ghost_offset_y += line_height;
                 }
             }
         }
