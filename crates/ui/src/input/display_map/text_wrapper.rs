@@ -352,6 +352,7 @@ pub(crate) struct LineLayout {
     pub(crate) whitespace_indicators: Option<WhitespaceIndicators>,
     /// Whitespace indicators: (line_index, x_position, is_tab)
     pub(crate) whitespace_chars: Vec<(usize, Pixels, bool)>,
+    has_run_backgrounds: bool,
 }
 
 impl LineLayout {
@@ -362,6 +363,7 @@ impl LineLayout {
             wrapped_lines: SmallVec::new(),
             whitespace_chars: Vec::new(),
             whitespace_indicators: None,
+            has_run_backgrounds: false,
         }
     }
 
@@ -379,6 +381,11 @@ impl LineLayout {
             .unwrap_or_default();
         self.longest_width = width;
         self.wrapped_lines = wrapped_lines;
+    }
+
+    pub(crate) fn with_run_backgrounds(mut self, has_run_backgrounds: bool) -> Self {
+        self.has_run_backgrounds = has_run_backgrounds;
+        self
     }
 
     pub(crate) fn with_whitespaces(mut self, indicators: Option<WhitespaceIndicators>) -> Self {
@@ -551,14 +558,16 @@ impl LineLayout {
         cx: &mut App,
     ) {
         for (ix, line) in self.wrapped_lines.iter().enumerate() {
-            _ = line.paint_background(
-                pos + point(px(0.), ix * line_height),
-                line_height,
-                text_align,
-                align_width,
-                window,
-                cx,
-            );
+            if self.has_run_backgrounds {
+                _ = line.paint_background(
+                    pos + point(px(0.), ix * line_height),
+                    line_height,
+                    text_align,
+                    align_width,
+                    window,
+                    cx,
+                );
+            }
             _ = line.paint(
                 pos + point(px(0.), ix * line_height),
                 line_height,

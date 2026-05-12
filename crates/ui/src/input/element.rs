@@ -1161,6 +1161,7 @@ impl TextElement {
             );
 
             let line_layout = LineLayout::new()
+                .with_run_backgrounds(runs.iter().any(|run| run.background_color.is_some()))
                 .lines(smallvec::smallvec![shaped_line])
                 .with_whitespaces(whitespace_indicators);
             return vec![line_layout];
@@ -1170,8 +1171,12 @@ impl TextElement {
         if state.text.len() == 0 {
             let placeholder_text = display_text.to_string();
             let mut placeholder_lines = SmallVec::new();
+            let mut has_run_backgrounds = false;
 
             for (line, line_runs) in placeholder_line_runs(&placeholder_text, runs) {
+                has_run_backgrounds |= line_runs
+                    .iter()
+                    .any(|run| run.background_color.is_some());
                 let shaped_line = window.text_system().shape_line(
                     line.to_string().into(),
                     font_size,
@@ -1183,6 +1188,7 @@ impl TextElement {
 
             // Keep placeholder lines in a single layout to stay parallel with visible_* metadata.
             let line_layout = LineLayout::new()
+                .with_run_backgrounds(has_run_backgrounds)
                 .lines(placeholder_lines)
                 .with_whitespaces(whitespace_indicators);
             return vec![line_layout];
@@ -1203,6 +1209,7 @@ impl TextElement {
             debug_assert_eq!(line_item.len(), line_text.len());
 
             let mut wrapped_lines = SmallVec::with_capacity(1);
+            let mut has_run_backgrounds = false;
 
             for range in &line_item.wrapped_lines {
                 let line_runs = runs_for_range(runs, run_offset, &range);
@@ -1215,6 +1222,9 @@ impl TextElement {
                         bg_segments,
                     )
                 };
+                has_run_backgrounds |= line_runs
+                    .iter()
+                    .any(|run| run.background_color.is_some());
 
                 let sub_line: SharedString = line_text[range.clone()].to_string().into();
                 let shaped_line = window
@@ -1225,6 +1235,7 @@ impl TextElement {
             }
 
             let line_layout = LineLayout::new()
+                .with_run_backgrounds(has_run_backgrounds)
                 .lines(wrapped_lines)
                 .with_whitespaces(whitespace_indicators.clone());
             lines.push(line_layout);
